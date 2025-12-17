@@ -47,20 +47,6 @@ try {
         Write-Log "$serviceName service is already running"
     }
 
-    # Unregister and re-register W32Time service
-    Write-Log "Unregistering W32Time service"
-    $unregResult = w32tm /unregister 2>&1
-    Write-Log "Unregister result: $unregResult"
-
-    Write-Log "Registering W32Time service"
-    $regResult = w32tm /register 2>&1
-    Write-Log "Register result: $regResult"
-
-    # Restart service after re-registration
-    Write-Log "Restarting $serviceName service after re-registration"
-    Start-Service -Name $serviceName -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-
     # Configure NTP servers
     Write-Log "Configuring NTP servers: $ntpServers"
     $configResult = w32tm /config /manualpeerlist:"$ntpServers" /syncfromflags:manual /reliable:yes /update 2>&1
