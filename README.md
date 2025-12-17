@@ -23,6 +23,8 @@ These scripts ensure Windows devices are configured to synchronize with Canadian
 
 ## Pre-Deployment Testing
 
+![](/Graphics/Test_Final.png)
+
 **Important:** Before deploying the W32Time scripts to devices behind firewalls, run `Test-NTP.ps1` to verify outbound NTP connectivity.
 
 ```powershell
@@ -78,6 +80,16 @@ The detection script (`Detect-LazyW32Time.ps1`) performs six checks:
 ## Intune Deployment
 
 ### Remediation Script Deployment
+
+#### Remediation Script Overview
+
+![](/Graphics\Set-Final.png)
+
+#### Detection Script Overview
+
+![](/Graphics/Detect-Final.png)
+
+### Configuring the Remediation Script
 
 1. Navigate to **Microsoft Intune admin center** > **Devices** > **Scripts and remediations** > **Remediations**
 2. Click **Create** to create a new remediation
