@@ -17,8 +17,8 @@ Intune remediation scripts for Windows Time (W32Time) service configuration and 
 
 ```
 LazyTimeSyncStuff/
-├── Detect-LazyW32Time.ps1    # Detection script (Intune compliance check)
-├── Set-LazyW32TimeandLocationServices.ps1       # Remediation script (configures W32Time)
+├── Detect-LazyTime.ps1   # Detection script (Intune compliance check)
+├── Set-LazyTime.ps1      # Remediation script (configures W32Time)
 ├── Test-NTP.ps1          # Pre-deployment connectivity test
 ├── referencescript.ps1   # Original reference script
 ├── Graphics/             # Documentation images
@@ -31,8 +31,8 @@ LazyTimeSyncStuff/
 ### Detection/Remediation Pattern
 
 The project follows Intune's detection/remediation model:
-1. **Detection** (`Detect-LazyW32Time.ps1`) - Checks compliance, exits 0 (compliant) or 1 (non-compliant)
-2. **Remediation** (`Set-LazyW32TimeandLocationServices.ps1`) - Runs only when detection fails, configures the system
+1. **Detection** (`Detect-LazyTime.ps1`) - Checks compliance, exits 0 (compliant) or 1 (non-compliant)
+2. **Remediation** (`Set-LazyTime.ps1`) - Runs only when detection fails, configures the system
 
 ### Data Flow
 
@@ -66,7 +66,7 @@ All scripts follow this pattern:
 Both detection and remediation scripts share identical logging conventions:
 
 ```powershell
-$logDir = "C:\ProgramData\W32Time"
+$logDir = "C:\ProgramData\LazyTime"
 $logPath = "$logDir\W32Time-Intune-YYYY-MM-DD-HH-mm.log"
 ```
 
@@ -93,14 +93,14 @@ These variables must match between scripts:
 
 | Variable | Script | Value |
 |----------|--------|-------|
-| `$ntpServers` | Set-LazyW32TimeandLocationServices.ps1 | Comma-separated string |
-| `$expectedNtpServers` | Detect-LazyW32Time.ps1 | Array of same servers |
+| `$ntpServers` | Set-LazyTime.ps1 | Comma-separated string |
+| `$expectedNtpServers` | Detect-LazyTime.ps1 | Array of same servers |
 
 ### Shared Settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `$logDir` | `C:\ProgramData\W32Time` | Log file directory |
+| `$logDir` | `C:\ProgramData\LazyTime` | Log file directory |
 | `$logRetentionDays` | `30` | Days to keep log files |
 | `$maxDriftSeconds` | `300` | Max allowed time drift (detection only) |
 

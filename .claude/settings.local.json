@@ -5,7 +5,9 @@
       "Bash(openspec update:*)",
       "Bash(openspec list:*)",
       "Bash(openspec validate:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(ls:*)",
+      "Bash(openspec archive:*)"
     ]
   }
 }

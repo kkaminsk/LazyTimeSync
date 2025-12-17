@@ -18,8 +18,8 @@ These scripts ensure Windows devices are configured to synchronize with Canadian
 | Script | Purpose |
 |--------|---------|
 | `Test-NTP.ps1` | Pre-deployment test - Verifies outbound NTP connectivity |
-| `Set-LazyW32TimeandLocationServices.ps1` | Remediation script - Configures W32Time service, registers if needed, and sets NTP servers |
-| `Detect-LazyW32Time.ps1` | Detection script - Validates configuration and time accuracy |
+| `Set-LazyTime.ps1` | Remediation script - Configures W32Time service, registers if needed, and sets NTP servers |
+| `Detect-LazyTime.ps1` | Detection script - Validates configuration and time accuracy |
 
 ## Pre-Deployment Testing
 
@@ -38,11 +38,11 @@ This script tests UDP port 123 connectivity to all configured NTP pool servers a
 
 If any connectivity tests fail, ensure your firewall allows outbound UDP port 123 to the NTP pool servers before deploying the remediation scripts. DNS errors may also interfere with the test.
 
-### Detect-LazyW32Time.ps1 The Detection Script
+### Detect-LazyTime.ps1 The Detection Script
 
 ![](/Graphics/Set-Final.png)
 
-### Set-LazyW32TimeandLocationServices.ps1 The Remediation Script
+### Set-LazyTime.ps1 The Remediation Script
 
 ![](/Graphics/Detect-Final.png)
 
@@ -55,11 +55,11 @@ The scripts are configured to use the Canadian NTP Pool Project servers:
 - `2.ca.pool.ntp.org`
 - `3.ca.pool.ntp.org`
 
-To use different NTP servers, modify the `$ntpServers` variable in `Set-LazyW32TimeandLocationServices.ps1` and the `$expectedNtpServers` array in `Detect-LazyW32Time.ps1`.
+To use different NTP servers, modify the `$ntpServers` variable in `Set-LazyTime.ps1` and the `$expectedNtpServers` array in `Detect-LazyTime.ps1`.
 
 ## Detection Criteria
 
-The detection script (`Detect-LazyW32Time.ps1`) performs six checks:
+The detection script (`Detect-LazyTime.ps1`) performs six checks:
 
 | Check | Description | Failure Condition |
 |-------|-------------|-------------------|
@@ -89,8 +89,8 @@ The detection script (`Detect-LazyW32Time.ps1`) performs six checks:
 |---------|-------|
 | Name | Configure Windows Time Service (W32Time) |
 | Description | Configures W32Time service with Canadian NTP pool servers |
-| Detection script file | `Detect-LazyW32Time.ps1` |
-| Remediation script file | `Set-LazyW32TimeandLocationServices.ps1` |
+| Detection script file | `Detect-LazyTime.ps1` |
+| Remediation script file | `Set-LazyTime.ps1` |
 | Run this script using the logged-on credentials | No |
 | Enforce script signature check | No (or Yes if scripts are signed) |
 | Run script in 64-bit PowerShell | Yes |
@@ -104,7 +104,7 @@ If deploying as a standalone script (without detection):
 
 1. Navigate to **Devices** > **Scripts and remediations** > **Platform scripts**
 2. Click **Add** > **Windows 10 and later**
-3. Upload `Set-LazyW32TimeandLocationServices.ps1`
+3. Upload `Set-LazyTime.ps1`
 4. Configure:
    - Run this script using the logged-on credentials: **No**
    - Run script in 64-bit PowerShell: **Yes**
@@ -117,7 +117,7 @@ Both detection and remediation scripts write detailed logs to help with troubles
 
 | Setting | Value |
 |---------|-------|
-| Log Directory | `C:\ProgramData\LazyW32TimeandLoc` |
+| Log Directory | `C:\ProgramData\LazyTime` |
 | Log File Pattern | `W32Time-Intune-YYYY-MM-DD-HH-mm.log` |
 | Retention Period | 30 days (configurable) |
 
@@ -289,19 +289,19 @@ The remediation script configures:
 
 ### Changing NTP Servers
 
-**Set-LazyW32TimeandLocationServices.ps1**:
+**Set-LazyTime.ps1**:
 ```powershell
 $ntpServers = "0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org"
 ```
 
-**Detect-LazyW32Time.ps1**:
+**Detect-LazyTime.ps1**:
 ```powershell
 $expectedNtpServers = @("0.ca.pool.ntp.org", "1.ca.pool.ntp.org", "2.ca.pool.ntp.org", "3.ca.pool.ntp.org")
 ```
 
 ### Changing Time Drift Tolerance
 
-**Detect-LazyW32Time.ps1**:
+**Detect-LazyTime.ps1**:
 ```powershell
 $maxDriftSeconds = 300  # 5 minutes
 ```
@@ -310,7 +310,7 @@ $maxDriftSeconds = 300  # 5 minutes
 
 Both scripts use a `$logDir` variable at the top of the script that can be modified:
 ```powershell
-$logDir = "C:\ProgramData\LazyW32TimeandLoc"
+$logDir = "C:\ProgramData\LazyTime"
 ```
 
 ### Changing Log Retention
@@ -323,7 +323,7 @@ $logRetentionDays = 30
 ## Security Considerations
 
 - Scripts run as SYSTEM (elevated) - required for service management
-- Log files are written to `C:\ProgramData\LazyW32TimeandLoc` (accessible by admins)
+- Log files are written to `C:\ProgramData\LazyTime` (accessible by admins)
 - NTP traffic is unencrypted UDP - ensure trusted network path
 - Consider using internal NTP servers in high-security environments
 

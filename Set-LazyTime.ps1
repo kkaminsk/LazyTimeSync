@@ -2,7 +2,7 @@
 # Configures W32Time service and Geolocation service (lfsvc)
 
 $serviceName = "W32Time"
-$logDir = "C:\ProgramData\LazyW32TimeandLoc"
+$logDir = "C:\ProgramData\LazyTime"
 $logTimestamp = Get-Date -Format "yyyy-MM-dd-HH-mm"
 $logPath = "$logDir\W32Time-Intune-$logTimestamp.log"
 $ntpServers = "0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org"

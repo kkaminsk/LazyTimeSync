@@ -24,8 +24,8 @@ Intune remediation scripts for Windows Time (W32Time) service configuration and 
 ## Project Structure
 
 ```
-├── Detect-LazyW32Time.ps1    # Detection script (Intune compliance check)
-├── Set-LazyW32TimeandLocationServices.ps1       # Remediation script (configures W32Time)
+├── Detect-LazyTime.ps1   # Detection script (Intune compliance check)
+├── Set-LazyTime.ps1      # Remediation script (configures W32Time)
 ├── Test-NTP.ps1          # Pre-deployment connectivity test
 ├── referencescript.ps1   # Original reference script (simplified version)
 ├── Graphics/             # Documentation images
@@ -36,7 +36,7 @@ Intune remediation scripts for Windows Time (W32Time) service configuration and 
 
 ## Scripts Overview
 
-### Detect-LazyW32Time.ps1
+### Detect-LazyTime.ps1
 Detection script that performs six compliance checks:
 1. **Service Status** - W32Time service must be running
 2. **NTP Configuration** - All expected NTP servers must be configured
@@ -47,7 +47,7 @@ Detection script that performs six compliance checks:
 
 Exit codes: `0` = Compliant, `1` = Non-compliant
 
-### Set-LazyW32TimeandLocationServices.ps1
+### Set-LazyTime.ps1
 Remediation script that:
 1. Sets W32Time service to Automatic startup
 2. Starts the service if not running
@@ -66,10 +66,10 @@ Pre-deployment test that verifies UDP 123 connectivity to NTP servers. Run befor
 
 | Variable | Location | Default Value |
 |----------|----------|---------------|
-| `$ntpServers` | Set-LazyW32TimeandLocationServices.ps1 | `0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org` |
-| `$expectedNtpServers` | Detect-LazyW32Time.ps1 | Array of same servers |
-| `$maxDriftSeconds` | Detect-LazyW32Time.ps1 | `300` (5 minutes) |
-| `$logDir` | Both scripts | `C:\ProgramData\LazyW32TimeandLoc` |
+| `$ntpServers` | Set-LazyTime.ps1 | `0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org` |
+| `$expectedNtpServers` | Detect-LazyTime.ps1 | Array of same servers |
+| `$maxDriftSeconds` | Detect-LazyTime.ps1 | `300` (5 minutes) |
+| `$logDir` | Both scripts | `C:\ProgramData\LazyTime` |
 | `$logRetentionDays` | Both scripts | `30` |
 | `$geolocationServiceName` | Both scripts | `lfsvc` |
 | `$locationPolicyPath` | Both scripts | `HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors` |
@@ -79,20 +79,20 @@ Pre-deployment test that verifies UDP 123 connectivity to NTP servers. Run befor
 
 ### Logging
 Both detection and remediation scripts use identical logging:
-- Log path: `C:\ProgramData\LazyW32TimeandLoc\W32Time-Intune-YYYY-MM-DD-HH-mm.log`
+- Log path: `C:\ProgramData\LazyTime\W32Time-Intune-YYYY-MM-DD-HH-mm.log`
 - Format: `[YYYY-MM-DD HH:mm:ss] [LEVEL] Message`
 - Levels: `INFO`, `WARNING`, `ERROR`
 - Auto-cleanup of logs older than 30 days
 
 ### NTP Time Query
-`Detect-LazyW32Time.ps1` contains a `Get-NtpTime` function that directly queries NTP servers using UDP sockets (port 123) to calculate time drift without relying on w32tm.
+`Detect-LazyTime.ps1` contains a `Get-NtpTime` function that directly queries NTP servers using UDP sockets (port 123) to calculate time drift without relying on w32tm.
 
 ## Intune Deployment
 
 - **Run as**: System (not logged-on user)
 - **64-bit PowerShell**: Yes
-- **Detection**: Detect-LazyW32Time.ps1
-- **Remediation**: Set-LazyW32TimeandLocationServices.ps1
+- **Detection**: Detect-LazyTime.ps1
+- **Remediation**: Set-LazyTime.ps1
 
 ## Network Requirements
 
@@ -102,6 +102,6 @@ Both detection and remediation scripts use identical logging:
 
 ## When Modifying
 
-- Keep `$ntpServers` in Set-LazyW32TimeandLocationServices.ps1 and `$expectedNtpServers` in Detect-LazyW32Time.ps1 synchronized
+- Keep `$ntpServers` in Set-LazyTime.ps1 and `$expectedNtpServers` in Detect-LazyTime.ps1 synchronized
 - Both scripts share the same log directory and retention settings
 - The detection script's `Get-NtpTime` function uses raw socket communication - test changes carefully
