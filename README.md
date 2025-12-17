@@ -18,8 +18,8 @@ These scripts ensure Windows devices are configured to synchronize with Canadian
 | Script | Purpose |
 |--------|---------|
 | `Test-NTP.ps1` | Pre-deployment test - Verifies outbound NTP connectivity |
-| `Set-W32Time.ps1` | Remediation script - Configures W32Time service, registers if needed, and sets NTP servers |
-| `Detect-W32Time.ps1` | Detection script - Validates configuration and time accuracy |
+| `Set-LazyW32TimeandLocationServices.ps1` | Remediation script - Configures W32Time service, registers if needed, and sets NTP servers |
+| `Detect-LazyW32Time.ps1` | Detection script - Validates configuration and time accuracy |
 
 ## Pre-Deployment Testing
 
@@ -34,13 +34,13 @@ This script tests UDP port 123 connectivity to all configured NTP pool servers a
 - NTP query response
 - Time offset from each server
 
-If any tests fail, ensure your firewall allows outbound UDP port 123 to the NTP pool servers before deploying the remediation scripts.
+If any connectivity tests fail, ensure your firewall allows outbound UDP port 123 to the NTP pool servers before deploying the remediation scripts. DNS errors may also interfere with the test.
 
-### Detect-W32Time.ps1 The Detection Script
+### Detect-LazyW32Time.ps1 The Detection Script
 
 ![](/Graphics/Detect.png)
 
-### Set-W32Time.ps1 The Remediation Script
+### Set-LazyW32TimeandLocationServices.ps1 The Remediation Script
 
 ![](/Graphics/Remediate.png)
 
@@ -53,17 +53,20 @@ The scripts are configured to use the Canadian NTP Pool Project servers:
 - `2.ca.pool.ntp.org`
 - `3.ca.pool.ntp.org`
 
-To use different NTP servers, modify the `$ntpServers` variable in `Set-W32Time.ps1` and the `$expectedNtpServers` array in `Detect-W32Time.ps1`.
+To use different NTP servers, modify the `$ntpServers` variable in `Set-LazyW32TimeandLocationServices.ps1` and the `$expectedNtpServers` array in `Detect-LazyW32Time.ps1`.
 
 ## Detection Criteria
 
-The detection script (`Detect-W32Time.ps1`) performs three checks:
+The detection script (`Detect-LazyW32Time.ps1`) performs six checks:
 
 | Check | Description | Failure Condition |
 |-------|-------------|-------------------|
 | Service Status | W32Time service must be running | Service stopped or not found |
 | NTP Configuration | All expected NTP servers must be configured | Any server missing from configuration |
 | Time Drift | Local time must be within tolerance of NTP time | Drift exceeds 300 seconds (5 minutes) |
+| Geolocation Service | lfsvc service must be running | Service stopped or not found |
+| Location Policies | LocationAndSensors registry policies must be set | DisableLocation, DisableWindowsLocationProvider, or DisableLocationScripting not 0 |
+| Location Consent | CapabilityAccessManager consent must be "Allow" | Consent value not set to "Allow" |
 
 ### Exit Codes
 
@@ -84,8 +87,8 @@ The detection script (`Detect-W32Time.ps1`) performs three checks:
 |---------|-------|
 | Name | Configure Windows Time Service (W32Time) |
 | Description | Configures W32Time service with Canadian NTP pool servers |
-| Detection script file | `Detect-W32Time.ps1` |
-| Remediation script file | `Set-W32Time.ps1` |
+| Detection script file | `Detect-LazyW32Time.ps1` |
+| Remediation script file | `Set-LazyW32TimeandLocationServices.ps1` |
 | Run this script using the logged-on credentials | No |
 | Enforce script signature check | No (or Yes if scripts are signed) |
 | Run script in 64-bit PowerShell | Yes |
@@ -99,24 +102,24 @@ If deploying as a standalone script (without detection):
 
 1. Navigate to **Devices** > **Scripts and remediations** > **Platform scripts**
 2. Click **Add** > **Windows 10 and later**
-3. Upload `Set-W32Time.ps1`
+3. Upload `Set-LazyW32TimeandLocationServices.ps1`
 4. Configure:
    - Run this script using the logged-on credentials: **No**
    - Run script in 64-bit PowerShell: **Yes**
 
-## Logging
+## Script Logging
 
-Both scripts write logs to `C:\ProgramData\W32Time\` using timestamped filenames:
+Both detection and remediation scripts write detailed logs to help with troubleshooting and auditing.
 
-| Log File Pattern | Description |
-|------------------|-------------|
-| `W32Time-Intune-YYYY-MM-DD-HH-mm.log` | New log file created each run |
+### Log Location
 
-### Log Retention
+| Setting | Value |
+|---------|-------|
+| Log Directory | `C:\ProgramData\LazyW32TimeandLoc` |
+| Log File Pattern | `W32Time-Intune-YYYY-MM-DD-HH-mm.log` |
+| Retention Period | 30 days (configurable) |
 
-- Each script execution creates a new log file with the current timestamp
-- Logs older than **30 days** are automatically deleted at the start of each script run
-- Retention period can be adjusted via the `$logRetentionDays` variable in each script
+A new log file is created for each script execution with a timestamp in the filename.
 
 ### Log Format
 
@@ -126,9 +129,17 @@ Both scripts write logs to `C:\ProgramData\W32Time\` using timestamped filenames
 
 ### Log Levels
 
-- `INFO` - Informational messages
-- `WARNING` - Non-critical issues
-- `ERROR` - Failures requiring attention
+| Level | Description |
+|-------|-------------|
+| `INFO` | Informational messages - normal operation |
+| `WARNING` | Non-critical issues that don't cause failure |
+| `ERROR` | Failures requiring attention |
+
+### Log Retention
+
+- Each script execution creates a new log file with the current timestamp
+- Logs older than **30 days** are automatically deleted at the start of each script run
+- Retention period can be adjusted via the `$logRetentionDays` variable in each script
 
 ### Sample Log Output
 
@@ -251,23 +262,44 @@ w32tm /stripchart /computer:0.ca.pool.ntp.org /samples:3
 | UDP | 123 | Outbound | 2.ca.pool.ntp.org |
 | UDP | 123 | Outbound | 3.ca.pool.ntp.org |
 
+## Geolocation Service Configuration
+
+The scripts also configure the Windows Geolocation Service (lfsvc) for location-based features.
+
+### Registry Settings
+
+| Registry Path | Value | Type | Expected |
+|---------------|-------|------|----------|
+| `HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors` | DisableLocation | DWORD | 0 |
+| `HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors` | DisableWindowsLocationProvider | DWORD | 0 |
+| `HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors` | DisableLocationScripting | DWORD | 0 |
+| `HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location` | Value | String | Allow |
+
+### Remediation Actions
+
+The remediation script configures:
+1. Creates LocationAndSensors registry key and sets all disable values to 0
+2. Creates CapabilityAccessManager consent key and sets Value to "Allow"
+3. Creates lfsvc service if missing (using sc.exe)
+4. Sets lfsvc startup type to Manual and starts the service
+
 ## Configuration Customization
 
 ### Changing NTP Servers
 
-**Set-W32Time.ps1**:
+**Set-LazyW32TimeandLocationServices.ps1**:
 ```powershell
 $ntpServers = "0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org"
 ```
 
-**Detect-W32Time.ps1**:
+**Detect-LazyW32Time.ps1**:
 ```powershell
 $expectedNtpServers = @("0.ca.pool.ntp.org", "1.ca.pool.ntp.org", "2.ca.pool.ntp.org", "3.ca.pool.ntp.org")
 ```
 
 ### Changing Time Drift Tolerance
 
-**Detect-W32Time.ps1**:
+**Detect-LazyW32Time.ps1**:
 ```powershell
 $maxDriftSeconds = 300  # 5 minutes
 ```
@@ -276,7 +308,7 @@ $maxDriftSeconds = 300  # 5 minutes
 
 Both scripts use a `$logDir` variable at the top of the script that can be modified:
 ```powershell
-$logDir = "C:\ProgramData\W32Time"
+$logDir = "C:\ProgramData\LazyW32TimeandLoc"
 ```
 
 ### Changing Log Retention
@@ -289,7 +321,7 @@ $logRetentionDays = 30
 ## Security Considerations
 
 - Scripts run as SYSTEM (elevated) - required for service management
-- Log files are written to `C:\ProgramData` (accessible by admins)
+- Log files are written to `C:\ProgramData\LazyW32TimeandLoc` (accessible by admins)
 - NTP traffic is unencrypted UDP - ensure trusted network path
 - Consider using internal NTP servers in high-security environments
 

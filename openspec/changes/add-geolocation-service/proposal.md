@@ -4,12 +4,12 @@ Devices need both accurate time synchronization (W32Time) and location services 
 
 ## What Changes
 
-- **Detect-W32Time.ps1**: Add checks for:
+- **Detect-LazyW32Time.ps1**: Add checks for:
   - Geolocation Service (lfsvc) running status
   - Registry policy settings for LocationAndSensors (DisableLocation, DisableWindowsLocationProvider, DisableLocationScripting)
   - CapabilityAccessManager consent store value for location
 
-- **Set-W32Time.ps1**: Add remediation for:
+- **Set-LazyW32TimeandLocationServices.ps1**: Add remediation for:
   - Create and configure LocationAndSensors registry keys
   - Set CapabilityAccessManager consent to "Allow"
   - Create lfsvc service if missing
@@ -18,8 +18,8 @@ Devices need both accurate time synchronization (W32Time) and location services 
 ## Impact
 
 - **Affected scripts**:
-  - `Detect-W32Time.ps1` - Add 3 new detection checks (service, registry policies, consent)
-  - `Set-W32Time.ps1` - Add geolocation remediation logic
+  - `Detect-LazyW32Time.ps1` - Add 3 new detection checks (service, registry policies, consent)
+  - `Set-LazyW32TimeandLocationServices.ps1` - Add geolocation remediation logic
 
 - **Affected documentation**:
   - `README.md` - Update to document new geolocation checks

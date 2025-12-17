@@ -4,7 +4,8 @@
       "Bash(mkdir:*)",
       "Bash(openspec update:*)",
       "Bash(openspec list:*)",
-      "Bash(openspec validate:*)"
+      "Bash(openspec validate:*)",
+      "Bash(git mv:*)"
     ]
   }
 }
