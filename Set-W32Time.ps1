@@ -59,6 +59,24 @@ try {
         Write-Log "$serviceName service is already running"
     }
 
+    # Check if W32Time service is properly registered
+    Write-Log "Checking W32Time service registration"
+    $registrationCheck = w32tm /query /status 2>&1
+    if ($registrationCheck -match "not registered" -or $registrationCheck -match "service has not been started") {
+        Write-Log "W32Time service needs registration, registering now"
+        $registerResult = w32tm /register 2>&1
+        Write-Log "Registration result: $registerResult"
+
+        # Restart the service after registration
+        Write-Log "Restarting $serviceName service after registration"
+        Restart-Service -Name $serviceName -Force
+        Start-Sleep -Seconds 2
+        $newStatus = (Get-Service -Name $serviceName).Status
+        Write-Log "$serviceName service status after restart: $newStatus"
+    } else {
+        Write-Log "W32Time service is already registered"
+    }
+
     # Configure NTP servers
     Write-Log "Configuring NTP servers: $ntpServers"
     $configResult = w32tm /config /manualpeerlist:"$ntpServers" /syncfromflags:manual /reliable:yes /update 2>&1
