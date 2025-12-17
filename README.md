@@ -83,7 +83,7 @@ The detection script (`Detect-LazyW32Time.ps1`) performs six checks:
 
 #### Remediation Script Overview
 
-![](/Graphics\Set-Final.png)
+![](/Graphics/Set-Final.png)
 
 #### Detection Script Overview
 
