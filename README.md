@@ -18,7 +18,7 @@ These scripts ensure Windows devices are configured to synchronize with Canadian
 | Script | Purpose |
 |--------|---------|
 | `Test-NTP.ps1` | Pre-deployment test - Verifies outbound NTP connectivity |
-| `Set-W32Time.ps1` | Remediation script - Configures W32Time service and NTP servers |
+| `Set-W32Time.ps1` | Remediation script - Configures W32Time service, registers if needed, and sets NTP servers |
 | `Detect-W32Time.ps1` | Detection script - Validates configuration and time accuracy |
 
 ## Pre-Deployment Testing
@@ -163,12 +163,9 @@ Both scripts write logs to `C:\ProgramData\W32Time\` using timestamped filenames
 [2025-12-16 10:30:05] [INFO] Service startup type set successfully
 [2025-12-16 10:30:05] [INFO] Current W32Time service status: Running
 [2025-12-16 10:30:05] [INFO] W32Time service is already running
-[2025-12-16 10:30:05] [INFO] Unregistering W32Time service
-[2025-12-16 10:30:06] [INFO] Unregister result: W32Time successfully unregistered.
-[2025-12-16 10:30:06] [INFO] Registering W32Time service
-[2025-12-16 10:30:06] [INFO] Register result: W32Time successfully registered.
-[2025-12-16 10:30:08] [INFO] Restarting W32Time service after re-registration
-[2025-12-16 10:30:10] [INFO] Configuring NTP servers: 0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org
+[2025-12-16 10:30:05] [INFO] Checking W32Time service registration
+[2025-12-16 10:30:05] [INFO] W32Time service is already registered
+[2025-12-16 10:30:05] [INFO] Configuring NTP servers: 0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org
 [2025-12-16 10:30:10] [INFO] NTP configuration result: The command completed successfully.
 [2025-12-16 10:30:10] [INFO] Forcing immediate time synchronization
 [2025-12-16 10:30:11] [INFO] Resync result: Sending resync command to local computer... The command completed successfully.

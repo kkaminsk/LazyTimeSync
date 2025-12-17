@@ -5,7 +5,7 @@ Intune remediation scripts for Windows Time (W32Time) service configuration and 
 ## Scripts
 
 - **Test-NTP.ps1** - Pre-deployment test script to verify outbound UDP 123 connectivity to NTP servers
-- **Set-W32Time.ps1** - Remediation script that configures W32Time service, sets NTP servers, and forces time sync
+- **Set-W32Time.ps1** - Remediation script that configures W32Time service, registers the service if needed, sets NTP servers, and forces time sync
 - **Detect-W32Time.ps1** - Detection script that verifies service status, NTP configuration, and time drift compliance
 
 ## Intune Deployment
