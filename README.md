@@ -17,8 +17,32 @@ These scripts ensure Windows devices are configured to synchronize with Canadian
 
 | Script | Purpose |
 |--------|---------|
+| `Test-NTP.ps1` | Pre-deployment test - Verifies outbound NTP connectivity |
 | `Set-W32Time.ps1` | Remediation script - Configures W32Time service and NTP servers |
 | `Detect-W32Time.ps1` | Detection script - Validates configuration and time accuracy |
+
+## Pre-Deployment Testing
+
+**Important:** Before deploying the W32Time scripts to devices behind firewalls, run `Test-NTP.ps1` to verify outbound NTP connectivity.
+
+```powershell
+.\Test-NTP.ps1
+```
+
+This script tests UDP port 123 connectivity to all configured NTP pool servers and reports:
+- DNS resolution status
+- NTP query response
+- Time offset from each server
+
+If any tests fail, ensure your firewall allows outbound UDP port 123 to the NTP pool servers before deploying the remediation scripts.
+
+### Detect-W32Time.ps1 The Detection Script
+
+![](/Graphics/Detect.png)
+
+### Set-W32Time.ps1 The Remediation Script
+
+![](/Graphics/Remediate.png)
 
 ## NTP Servers
 
@@ -82,12 +106,17 @@ If deploying as a standalone script (without detection):
 
 ## Logging
 
-Both scripts write logs to `C:\ProgramData\W32Time\`:
+Both scripts write logs to `C:\ProgramData\W32Time\` using timestamped filenames:
 
-| Log File | Script |
-|----------|--------|
-| `W32Time-Intune.log` | Set-W32Time.ps1 (Remediation) |
-| `W32Time-Detection.log` | Detect-W32Time.ps1 (Detection) |
+| Log File Pattern | Description |
+|------------------|-------------|
+| `W32Time-Intune-YYYY-MM-DD-HH-mm.log` | New log file created each run |
+
+### Log Retention
+
+- Each script execution creates a new log file with the current timestamp
+- Logs older than **30 days** are automatically deleted at the start of each script run
+- Retention period can be adjusted via the `$logRetentionDays` variable in each script
 
 ### Log Format
 
@@ -103,7 +132,7 @@ Both scripts write logs to `C:\ProgramData\W32Time\`:
 
 ### Sample Log Output
 
-**Detection Script (Success):**
+**Detection Script (Success):** `W32Time-Intune-2025-12-16-10-30.log`
 ```
 [2025-12-16 10:30:00] [INFO] ========== Starting W32Time Detection ==========
 [2025-12-16 10:30:00] [INFO] Computer Name: WORKSTATION01
@@ -125,7 +154,7 @@ Both scripts write logs to `C:\ProgramData\W32Time\`:
 [2025-12-16 10:30:00] [INFO] ========== Detection Result: SUCCESS ==========
 ```
 
-**Remediation Script:**
+**Remediation Script:** `W32Time-Intune-2025-12-16-10-30.log`
 ```
 [2025-12-16 10:30:05] [INFO] ========== Starting W32Time Configuration ==========
 [2025-12-16 10:30:05] [INFO] Computer Name: WORKSTATION01
@@ -229,26 +258,36 @@ w32tm /stripchart /computer:0.ca.pool.ntp.org /samples:3
 
 ### Changing NTP Servers
 
-**Set-W32Time.ps1** (line 5):
+**Set-W32Time.ps1**:
 ```powershell
 $ntpServers = "0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org"
 ```
 
-**Detect-W32Time.ps1** (line 6):
+**Detect-W32Time.ps1**:
 ```powershell
 $expectedNtpServers = @("0.ca.pool.ntp.org", "1.ca.pool.ntp.org", "2.ca.pool.ntp.org", "3.ca.pool.ntp.org")
 ```
 
 ### Changing Time Drift Tolerance
 
-**Detect-W32Time.ps1** (line 7):
+**Detect-W32Time.ps1**:
 ```powershell
 $maxDriftSeconds = 300  # 5 minutes
 ```
 
 ### Changing Log Paths
 
-Both scripts use a `$logPath` variable at the top of the script that can be modified.
+Both scripts use a `$logDir` variable at the top of the script that can be modified:
+```powershell
+$logDir = "C:\ProgramData\W32Time"
+```
+
+### Changing Log Retention
+
+Both scripts use a `$logRetentionDays` variable:
+```powershell
+$logRetentionDays = 30
+```
 
 ## Security Considerations
 

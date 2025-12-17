@@ -2,14 +2,25 @@
 # Exit 0 = Compliant (detected), Exit 1 = Non-compliant (not detected)
 
 $serviceName = "W32Time"
-$logPath = "C:\ProgramData\W32Time\W32Time-Detection.log"
+$logDir = "C:\ProgramData\W32Time"
+$logTimestamp = Get-Date -Format "yyyy-MM-dd-HH-mm"
+$logPath = "$logDir\W32Time-Intune-$logTimestamp.log"
 $expectedNtpServers = @("0.ca.pool.ntp.org", "1.ca.pool.ntp.org", "2.ca.pool.ntp.org", "3.ca.pool.ntp.org")
 $maxDriftSeconds = 300
+$logRetentionDays = 30
+
+function Remove-OldLogs {
+    if (Test-Path -Path $logDir) {
+        $cutoffDate = (Get-Date).AddDays(-$logRetentionDays)
+        Get-ChildItem -Path $logDir -Filter "W32Time-Intune-*.log" |
+            Where-Object { $_.LastWriteTime -lt $cutoffDate } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+}
 
 function Write-Log {
     param([string]$Message, [string]$Level = "INFO")
 
-    $logDir = Split-Path -Path $logPath -Parent
     if (-not (Test-Path -Path $logDir)) {
         New-Item -ItemType Directory -Path $logDir -Force | Out-Null
     }
@@ -49,6 +60,7 @@ function Get-NtpTime {
 }
 
 try {
+    Remove-OldLogs
     Write-Log "========== Starting W32Time Detection =========="
     Write-Log "Computer Name: $env:COMPUTERNAME"
     $detectionPassed = $true
