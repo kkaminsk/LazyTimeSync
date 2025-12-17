@@ -40,11 +40,11 @@ If any connectivity tests fail, ensure your firewall allows outbound UDP port 12
 
 ### Detect-LazyW32Time.ps1 The Detection Script
 
-![](/Graphics/Detect.png)
+![](/Graphics/Set-Final.png)
 
 ### Set-LazyW32TimeandLocationServices.ps1 The Remediation Script
 
-![](/Graphics/Remediate.png)
+![](/Graphics/Detect-Final.png)
 
 ## NTP Servers
 
@@ -78,16 +78,6 @@ The detection script (`Detect-LazyW32Time.ps1`) performs six checks:
 | 1 | Non-Compliant | One or more checks failed - remediation required |
 
 ## Intune Deployment
-
-### Remediation Script Deployment
-
-#### Remediation Script Overview
-
-![](/Graphics/Set-Final.png)
-
-#### Detection Script Overview
-
-![](/Graphics/Detect-Final.png)
 
 ### Configuring the Remediation Script
 
