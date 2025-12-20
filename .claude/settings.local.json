@@ -7,7 +7,10 @@
       "Bash(openspec validate:*)",
       "Bash(git mv:*)",
       "Bash(ls:*)",
-      "Bash(openspec archive:*)"
+      "Bash(openspec archive:*)",
+      "Skill(openspec:proposal)",
+      "Bash(powershell:*)",
+      "Bash(echo:*)"
     ]
   }
 }

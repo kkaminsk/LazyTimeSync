@@ -1,13 +1,30 @@
-# Detection script for Intune - Checks W32Time service status, NTP configuration, time drift, and Geolocation service
-# Exit 0 = Compliant (detected), Exit 1 = Non-compliant (not detected)
+<#
+.SYNOPSIS
+    Intune Detection Script - Checks W32Time service, NTP configuration, time drift, and Geolocation service.
 
+.DESCRIPTION
+    This detection script performs six compliance checks for Intune Remediations:
+    1. W32Time service must be running
+    2. All expected NTP servers must be configured
+    3. Local time must be within 300 seconds of NTP time
+    4. Geolocation service (lfsvc) must be running
+    5. LocationAndSensors registry policies must allow location
+    6. CapabilityAccessManager consent must be "Allow"
+
+    Exit codes:
+    - Exit 0 = Compliant (all checks pass)
+    - Exit 1 = Non-Compliant (any check fails)
+#>
+
+# --- Configuration ---
 $serviceName = "W32Time"
 $logDir = "C:\ProgramData\LazyTime"
-$logTimestamp = Get-Date -Format "yyyy-MM-dd-HH-mm"
-$logPath = "$logDir\W32Time-Intune-$logTimestamp.log"
+$logPath = "$logDir\Detect-LazyTime.log"
 $expectedNtpServers = @("0.ca.pool.ntp.org", "1.ca.pool.ntp.org", "2.ca.pool.ntp.org", "3.ca.pool.ntp.org")
 $maxDriftSeconds = 300
 $logRetentionDays = 30
+$maxLogSizeMB = 5
+$maxLogArchives = 3
 
 # Geolocation service configuration
 $geolocationServiceName = "lfsvc"
@@ -19,25 +36,49 @@ $expectedLocationPolicies = @{
     "DisableLocationScripting" = 0
 }
 
-function Remove-OldLogs {
-    if (Test-Path -Path $logDir) {
-        $cutoffDate = (Get-Date).AddDays(-$logRetentionDays)
-        Get-ChildItem -Path $logDir -Filter "W32Time-Intune-*.log" |
-            Where-Object { $_.LastWriteTime -lt $cutoffDate } |
-            Remove-Item -Force -ErrorAction SilentlyContinue
+# --- Helper Functions ---
+
+function Invoke-LogRotation {
+    param(
+        [string]$Path,
+        [int]$MaxSizeMB = 5,
+        [int]$MaxArchives = 3
+    )
+
+    if (Test-Path $Path) {
+        $logFile = Get-Item $Path
+        if ($logFile.Length -gt ($MaxSizeMB * 1MB)) {
+            $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+            $archiveName = "$Path.$timestamp.old"
+            Rename-Item -Path $Path -NewName $archiveName -Force
+
+            # Prune old archives
+            $parentDir = Split-Path $Path -Parent
+            $baseName = Split-Path $Path -Leaf
+            $oldArchives = Get-ChildItem -Path $parentDir -Filter "$baseName.*.old" -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending
+
+            if ($oldArchives.Count -gt $MaxArchives) {
+                $oldArchives | Select-Object -Skip $MaxArchives | Remove-Item -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
 }
 
-function Write-Log {
-    param([string]$Message, [string]$Level = "INFO")
+function Remove-OldLogs {
+    if (Test-Path -Path $logDir) {
+        $cutoffDate = (Get-Date).AddDays(-$logRetentionDays)
 
-    if (-not (Test-Path -Path $logDir)) {
-        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+        # Clean up legacy timestamped log files
+        Get-ChildItem -Path $logDir -Filter "W32Time-Intune-*.log" -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt $cutoffDate } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+
+        # Clean up old archive files beyond retention
+        Get-ChildItem -Path $logDir -Filter "*.old" -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt $cutoffDate } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
     }
-
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logEntry = "[$timestamp] [$Level] $Message"
-    $logEntry | Out-File -FilePath $logPath -Append -Encoding utf8
 }
 
 function Get-NtpTime {
@@ -69,156 +110,177 @@ function Get-NtpTime {
     }
 }
 
+# --- Main Execution ---
+
+# Ensure log directory exists
+if (-not (Test-Path -Path $logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+
+# Perform log maintenance
+Remove-OldLogs
+Invoke-LogRotation -Path $logPath -MaxSizeMB $maxLogSizeMB -MaxArchives $maxLogArchives
+
+# Start transcript logging
 try {
-    Remove-OldLogs
-    Write-Log "========== Starting W32Time Detection =========="
-    Write-Log "Computer Name: $env:COMPUTERNAME"
+    Start-Transcript -Path $logPath -Append -Force -ErrorAction SilentlyContinue
+
+    Write-Output "========== Starting W32Time Detection =========="
+    Write-Output "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Write-Output "Computer Name: $env:COMPUTERNAME"
+
     $detectionPassed = $true
 
     # Check 1: W32Time service is running
-    Write-Log "Check 1: Verifying $serviceName service status"
+    Write-Output "Check 1: Verifying $serviceName service status"
     $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 
     if ($null -eq $service) {
-        Write-Log "$serviceName service not found" -Level "ERROR"
+        Write-Output "[ERROR] $serviceName service not found"
         $detectionPassed = $false
     } elseif ($service.Status -ne 'Running') {
-        Write-Log "$serviceName service is not running. Current status: $($service.Status)" -Level "ERROR"
+        Write-Output "[ERROR] $serviceName service is not running. Current status: $($service.Status)"
         $detectionPassed = $false
     } else {
-        Write-Log "$serviceName service is running - PASS"
+        Write-Output "[PASS] $serviceName service is running"
     }
 
     # Check 2: NTP servers are configured correctly
-    Write-Log "Check 2: Verifying NTP server configuration"
+    Write-Output "Check 2: Verifying NTP server configuration"
     $w32tmConfig = w32tm /query /peers 2>&1 | Out-String
 
     $allServersConfigured = $true
     foreach ($server in $expectedNtpServers) {
         if ($w32tmConfig -notmatch [regex]::Escape($server)) {
-            Write-Log "NTP server '$server' is not configured" -Level "ERROR"
+            Write-Output "[ERROR] NTP server '$server' is not configured"
             $allServersConfigured = $false
         } else {
-            Write-Log "NTP server '$server' is configured - PASS"
+            Write-Output "[PASS] NTP server '$server' is configured"
         }
     }
 
     if (-not $allServersConfigured) {
-        Write-Log "Not all expected NTP servers are configured" -Level "ERROR"
+        Write-Output "[ERROR] Not all expected NTP servers are configured"
         $detectionPassed = $false
     } else {
-        Write-Log "All expected NTP servers are configured - PASS"
+        Write-Output "[PASS] All expected NTP servers are configured"
     }
 
     # Check 3: Time drift is within acceptable range
-    Write-Log "Check 3: Verifying time drift is within $maxDriftSeconds seconds"
+    Write-Output "Check 3: Verifying time drift is within $maxDriftSeconds seconds"
     $ntpTime = $null
     $testedServer = $null
 
     foreach ($server in $expectedNtpServers) {
-        Write-Log "Attempting to query time from $server"
+        Write-Output "Attempting to query time from $server"
         $ntpTime = Get-NtpTime -NtpServer $server
         if ($null -ne $ntpTime) {
             $testedServer = $server
-            Write-Log "Successfully retrieved time from $server"
+            Write-Output "Successfully retrieved time from $server"
             break
         } else {
-            Write-Log "Failed to retrieve time from $server" -Level "WARNING"
+            Write-Output "[WARNING] Failed to retrieve time from $server"
         }
     }
 
     if ($null -eq $ntpTime) {
-        Write-Log "Could not retrieve time from any NTP server" -Level "ERROR"
+        Write-Output "[ERROR] Could not retrieve time from any NTP server"
         $detectionPassed = $false
     } else {
         $localTime = [DateTime]::UtcNow
         $timeDrift = [Math]::Abs(($localTime - $ntpTime).TotalSeconds)
 
-        Write-Log "NTP Server ($testedServer) time (UTC): $($ntpTime.ToString('yyyy-MM-dd HH:mm:ss'))"
-        Write-Log "Local system time (UTC): $($localTime.ToString('yyyy-MM-dd HH:mm:ss'))"
-        Write-Log "Time drift: $([Math]::Round($timeDrift, 2)) seconds"
+        Write-Output "NTP Server ($testedServer) time (UTC): $($ntpTime.ToString('yyyy-MM-dd HH:mm:ss'))"
+        Write-Output "Local system time (UTC): $($localTime.ToString('yyyy-MM-dd HH:mm:ss'))"
+        Write-Output "Time drift: $([Math]::Round($timeDrift, 2)) seconds"
 
         if ($timeDrift -gt $maxDriftSeconds) {
-            Write-Log "Time drift ($([Math]::Round($timeDrift, 2)) seconds) exceeds maximum allowed ($maxDriftSeconds seconds)" -Level "ERROR"
+            Write-Output "[ERROR] Time drift ($([Math]::Round($timeDrift, 2)) seconds) exceeds maximum allowed ($maxDriftSeconds seconds)"
             $detectionPassed = $false
         } else {
-            Write-Log "Time drift is within acceptable range - PASS"
+            Write-Output "[PASS] Time drift is within acceptable range"
         }
     }
 
     # Check 4: Geolocation service (lfsvc) is running
-    Write-Log "Check 4: Verifying $geolocationServiceName service status"
+    Write-Output "Check 4: Verifying $geolocationServiceName service status"
     $geoService = Get-Service -Name $geolocationServiceName -ErrorAction SilentlyContinue
 
     if ($null -eq $geoService) {
-        Write-Log "$geolocationServiceName service not found" -Level "ERROR"
+        Write-Output "[ERROR] $geolocationServiceName service not found"
         $detectionPassed = $false
     } elseif ($geoService.Status -ne 'Running') {
-        Write-Log "$geolocationServiceName service is not running. Current status: $($geoService.Status)" -Level "ERROR"
+        Write-Output "[ERROR] $geolocationServiceName service is not running. Current status: $($geoService.Status)"
         $detectionPassed = $false
     } else {
-        Write-Log "$geolocationServiceName service is running - PASS"
+        Write-Output "[PASS] $geolocationServiceName service is running"
     }
 
     # Check 5: LocationAndSensors registry policies
-    Write-Log "Check 5: Verifying LocationAndSensors registry policy values"
+    Write-Output "Check 5: Verifying LocationAndSensors registry policy values"
     if (-not (Test-Path -Path $locationPolicyPath)) {
-        Write-Log "LocationAndSensors registry key not found at $locationPolicyPath" -Level "ERROR"
+        Write-Output "[ERROR] LocationAndSensors registry key not found at $locationPolicyPath"
         $detectionPassed = $false
     } else {
         $allPoliciesCorrect = $true
         foreach ($policy in $expectedLocationPolicies.GetEnumerator()) {
             $currentValue = Get-ItemProperty -Path $locationPolicyPath -Name $policy.Key -ErrorAction SilentlyContinue
             if ($null -eq $currentValue) {
-                Write-Log "Registry value '$($policy.Key)' not found" -Level "ERROR"
+                Write-Output "[ERROR] Registry value '$($policy.Key)' not found"
                 $allPoliciesCorrect = $false
             } elseif ($currentValue.($policy.Key) -ne $policy.Value) {
-                Write-Log "Registry value '$($policy.Key)' is $($currentValue.($policy.Key)), expected $($policy.Value)" -Level "ERROR"
+                Write-Output "[ERROR] Registry value '$($policy.Key)' is $($currentValue.($policy.Key)), expected $($policy.Value)"
                 $allPoliciesCorrect = $false
             } else {
-                Write-Log "Registry value '$($policy.Key)' = $($policy.Value) - PASS"
+                Write-Output "[PASS] Registry value '$($policy.Key)' = $($policy.Value)"
             }
         }
         if (-not $allPoliciesCorrect) {
-            Write-Log "Not all LocationAndSensors policies are correctly configured" -Level "ERROR"
+            Write-Output "[ERROR] Not all LocationAndSensors policies are correctly configured"
             $detectionPassed = $false
         } else {
-            Write-Log "All LocationAndSensors policies are correctly configured - PASS"
+            Write-Output "[PASS] All LocationAndSensors policies are correctly configured"
         }
     }
 
     # Check 6: CapabilityAccessManager consent for location
-    Write-Log "Check 6: Verifying CapabilityAccessManager location consent"
+    Write-Output "Check 6: Verifying CapabilityAccessManager location consent"
     if (-not (Test-Path -Path $locationConsentPath)) {
-        Write-Log "Location consent registry key not found at $locationConsentPath" -Level "ERROR"
+        Write-Output "[ERROR] Location consent registry key not found at $locationConsentPath"
         $detectionPassed = $false
     } else {
         $consentValue = Get-ItemProperty -Path $locationConsentPath -Name "Value" -ErrorAction SilentlyContinue
         if ($null -eq $consentValue) {
-            Write-Log "Location consent 'Value' property not found" -Level "ERROR"
+            Write-Output "[ERROR] Location consent 'Value' property not found"
             $detectionPassed = $false
         } elseif ($consentValue.Value -ne "Allow") {
-            Write-Log "Location consent is '$($consentValue.Value)', expected 'Allow'" -Level "ERROR"
+            Write-Output "[ERROR] Location consent is '$($consentValue.Value)', expected 'Allow'"
             $detectionPassed = $false
         } else {
-            Write-Log "Location consent is 'Allow' - PASS"
+            Write-Output "[PASS] Location consent is 'Allow'"
         }
     }
 
-    # Final result
+    # Final result (logged to transcript)
     if ($detectionPassed) {
-        Write-Log "========== Detection Result: SUCCESS =========="
-        Write-Output "Compliant"
-        exit 0
+        Write-Output "========== Detection Result: COMPLIANT =========="
     } else {
-        Write-Log "========== Detection Result: FAILED ==========" -Level "ERROR"
-        Write-Output "Non-Compliant"
-        exit 1
+        Write-Output "========== Detection Result: NON-COMPLIANT =========="
     }
 
 } catch {
-    Write-Log "Unexpected error: $($_.Exception.Message)" -Level "ERROR"
-    Write-Log "========== Detection Result: FAILED ==========" -Level "ERROR"
+    Write-Output "[ERROR] Unexpected error: $($_.Exception.Message)"
+    Write-Output "========== Detection Result: FAILED =========="
+    $detectionPassed = $false
+} finally {
+    Stop-Transcript -ErrorAction SilentlyContinue
+}
+
+# Console output for Intune (single line only)
+if ($detectionPassed) {
+    Write-Output "Compliant"
+    exit 0
+} else {
     Write-Output "Non-Compliant"
     exit 1
 }

@@ -8,7 +8,7 @@ This script verifies that outbound NTP connectivity is working before deploying 
 
 ## Prerequisites
 
-- PowerShell 5.1 or later
+- PowerShell 5.1 or later (`#Requires -Version 5.1`)
 - Administrator privileges recommended
 - Network access to test NTP connectivity
 
@@ -22,7 +22,7 @@ This script verifies that outbound NTP connectivity is working before deploying 
    - Initialize empty results array
 
 2. Display header:
-   - Print "NTP Connectivity Test" banner
+   - Print "NTP Connectivity Test" banner (Cyan)
    - Indicate testing UDP port 123
 
 ### 2. Server Testing Loop
@@ -30,16 +30,17 @@ This script verifies that outbound NTP connectivity is working before deploying 
 For each NTP server in the list, perform the following:
 
 #### 2.1 Display Current Server
-1. Print server name being tested
+1. Print server name being tested (Yellow)
 
 #### 2.2 DNS Resolution Test
 1. Attempt to resolve server hostname to IP address using `[System.Net.Dns]::GetHostAddresses()`
-2. Evaluate result:
+2. Select first resolved IP address
+3. Evaluate result:
    - If successful:
-     - Display resolved IP address
+     - Display resolved IP address (Gray)
      - Continue to NTP query test
    - If failed:
-     - Display "DNS resolution FAILED"
+     - Display "DNS resolution FAILED" (Red)
      - Record FAIL result with details
      - Skip to next server (do not attempt NTP query)
 
@@ -49,33 +50,33 @@ For each NTP server in the list, perform the following:
    - `/samples:3` - Number of time samples to collect
    - `/dataonly` - Output data only (no chart)
 
-2. Capture command output
+2. Capture command output and join lines
 
 3. Check for error conditions in output:
    - Look for "error", "0x800705B4", or "timed out" patterns
 
 4. Evaluate result:
    - If error pattern found:
-     - Display "NTP query FAILED"
-     - Display "Connection timed out or blocked"
+     - Display "NTP query FAILED" (Red)
+     - Display "Error: Connection timed out or blocked" (Red)
      - Record FAIL result with firewall recommendation
    - If no error pattern:
-     - Attempt to extract time offset from output using regex
+     - Attempt to extract time offset from output using regex pattern `([+-]?\d+\.\d+)s$`
      - If offset found:
-       - Display "NTP query SUCCESS" with offset value
+       - Display "NTP query SUCCESS (offset: Xs)" (Green)
        - Record PASS result with offset details
      - If offset not found:
-       - Display "NTP query SUCCESS"
+       - Display "NTP query SUCCESS" (Green)
        - Record PASS result with generic success message
 
 5. Handle unexpected exceptions:
-   - Display error message
+   - Display error message (Red)
    - Record FAIL result with exception details
 
 ### 3. Results Summary
 
 #### 3.1 Display Results Table
-1. Print "Test Results Summary" header
+1. Print "Test Results Summary" header (Cyan)
 2. Display all results in formatted table showing:
    - Server name
    - Status (PASS/FAIL)
@@ -94,13 +95,13 @@ For each NTP server in the list, perform the following:
 ### 4. Final Result
 
 #### If Any Tests Failed (failed > 0):
-1. Print "Failed: X / Y" in red
-2. Print recommendation: "Ensure UDP port 123 is open outbound to NTP servers"
-3. Print firewall rule suggestion: "UDP 123 Outbound to *.pool.ntp.org"
+1. Print "Failed: X / Y" (Red)
+2. Print recommendation: "Ensure UDP port 123 is open outbound to NTP servers" (Yellow)
+3. Print firewall rule suggestion: "UDP 123 Outbound to *.pool.ntp.org" (Yellow)
 4. Exit with code **1** (failure)
 
 #### If All Tests Passed (failed = 0):
-1. Print "All NTP servers are reachable. Safe to deploy W32Time scripts."
+1. Print "All NTP servers are reachable. Safe to deploy W32Time scripts." (Green)
 2. Exit with code **0** (success)
 
 ## Exit Codes

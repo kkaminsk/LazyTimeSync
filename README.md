@@ -111,79 +111,77 @@ If deploying as a standalone script (without detection):
 
 ## Script Logging
 
-Both detection and remediation scripts write detailed logs to help with troubleshooting and auditing.
+Both scripts use PowerShell's `Start-Transcript` for comprehensive logging, following Microsoft Intune best practices.
 
 ### Log Location
 
 | Setting | Value |
 |---------|-------|
 | Log Directory | `C:\ProgramData\LazyTime` |
-| Log File Pattern | `W32Time-Intune-YYYY-MM-DD-HH-mm.log` |
-| Retention Period | 30 days (configurable) |
+| Detection Log | `Detect-LazyTime.log` |
+| Remediation Log | `Remediate-LazyTime.log` |
 
-A new log file is created for each script execution with a timestamp in the filename.
+### Log Rotation
 
-### Log Format
+Scripts implement automatic size-based log rotation to prevent disk exhaustion:
 
-```
-[YYYY-MM-DD HH:mm:ss] [LEVEL] Message
-```
+| Setting | Value |
+|---------|-------|
+| Max Log Size | 5 MB |
+| Max Archives | 3 |
+| Archive Pattern | `*.log.YYYYMMDD-HHmmss.old` |
+| Retention Period | 30 days |
 
-### Log Levels
+When a log file exceeds 5 MB, it is archived with a timestamp suffix. Only the 3 most recent archives are retained.
 
-| Level | Description |
-|-------|-------------|
-| `INFO` | Informational messages - normal operation |
-| `WARNING` | Non-critical issues that don't cause failure |
-| `ERROR` | Failures requiring attention |
+### Log Markers
 
-### Log Retention
+| Marker | Description |
+|--------|-------------|
+| `[PASS]` | Check passed successfully |
+| `[ERROR]` | Check failed or error occurred |
+| `[WARNING]` | Non-critical issue |
 
-- Each script execution creates a new log file with the current timestamp
-- Logs older than **30 days** are automatically deleted at the start of each script run
-- Retention period can be adjusted via the `$logRetentionDays` variable in each script
+### Console Output
+
+To comply with Intune's 2048-character limit, console output is minimal:
+
+| Script | Success Output | Failure Output |
+|--------|----------------|----------------|
+| Detection | `Compliant` | `Non-Compliant` |
+| Remediation | `Remediation completed successfully` | `Remediation failed` |
+
+Detailed logs are written only to the transcript file.
 
 ### Sample Log Output
 
-**Detection Script (Success):** `W32Time-Intune-2025-12-16-10-30.log`
+**Detection Script:** `Detect-LazyTime.log`
 ```
-[2025-12-16 10:30:00] [INFO] ========== Starting W32Time Detection ==========
-[2025-12-16 10:30:00] [INFO] Computer Name: WORKSTATION01
-[2025-12-16 10:30:00] [INFO] Check 1: Verifying W32Time service status
-[2025-12-16 10:30:00] [INFO] W32Time service is running - PASS
-[2025-12-16 10:30:00] [INFO] Check 2: Verifying NTP server configuration
-[2025-12-16 10:30:00] [INFO] NTP server '0.ca.pool.ntp.org' is configured - PASS
-[2025-12-16 10:30:00] [INFO] NTP server '1.ca.pool.ntp.org' is configured - PASS
-[2025-12-16 10:30:00] [INFO] NTP server '2.ca.pool.ntp.org' is configured - PASS
-[2025-12-16 10:30:00] [INFO] NTP server '3.ca.pool.ntp.org' is configured - PASS
-[2025-12-16 10:30:00] [INFO] All expected NTP servers are configured - PASS
-[2025-12-16 10:30:00] [INFO] Check 3: Verifying time drift is within 300 seconds
-[2025-12-16 10:30:00] [INFO] Attempting to query time from 0.ca.pool.ntp.org
-[2025-12-16 10:30:00] [INFO] Successfully retrieved time from 0.ca.pool.ntp.org
-[2025-12-16 10:30:00] [INFO] NTP Server (0.ca.pool.ntp.org) time (UTC): 2025-12-16 15:30:00
-[2025-12-16 10:30:00] [INFO] Local system time (UTC): 2025-12-16 15:30:00
-[2025-12-16 10:30:00] [INFO] Time drift: 0.52 seconds
-[2025-12-16 10:30:00] [INFO] Time drift is within acceptable range - PASS
-[2025-12-16 10:30:00] [INFO] ========== Detection Result: SUCCESS ==========
+**********************
+Windows PowerShell transcript start
+Start time: 20251220111932
+**********************
+========== Starting W32Time Detection ==========
+Timestamp: 2025-12-20 11:19:32
+Computer Name: WORKSTATION01
+Check 1: Verifying W32Time service status
+[PASS] W32Time service is running
+Check 2: Verifying NTP server configuration
+[PASS] NTP server '0.ca.pool.ntp.org' is configured
+[PASS] All expected NTP servers are configured
+Check 3: Verifying time drift is within 300 seconds
+[PASS] Time drift is within acceptable range
+========== Detection Result: COMPLIANT ==========
+**********************
+Windows PowerShell transcript end
+**********************
 ```
 
-**Remediation Script:** `W32Time-Intune-2025-12-16-10-30.log`
-```
-[2025-12-16 10:30:05] [INFO] ========== Starting W32Time Configuration ==========
-[2025-12-16 10:30:05] [INFO] Computer Name: WORKSTATION01
-[2025-12-16 10:30:05] [INFO] Script executed by: SYSTEM
-[2025-12-16 10:30:05] [INFO] Setting W32Time service startup type to Automatic
-[2025-12-16 10:30:05] [INFO] Service startup type set successfully
-[2025-12-16 10:30:05] [INFO] Current W32Time service status: Running
-[2025-12-16 10:30:05] [INFO] W32Time service is already running
-[2025-12-16 10:30:05] [INFO] Checking W32Time service registration
-[2025-12-16 10:30:05] [INFO] W32Time service is already registered
-[2025-12-16 10:30:05] [INFO] Configuring NTP servers: 0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org
-[2025-12-16 10:30:10] [INFO] NTP configuration result: The command completed successfully.
-[2025-12-16 10:30:10] [INFO] Forcing immediate time synchronization
-[2025-12-16 10:30:11] [INFO] Resync result: Sending resync command to local computer... The command completed successfully.
-[2025-12-16 10:30:11] [INFO] ========== W32Time Configuration Completed Successfully ==========
-```
+### Legacy Log Cleanup
+
+Scripts automatically clean up old log formats during execution:
+- Legacy timestamped logs (`W32Time-Intune-*.log`) older than 30 days
+- Archive files (`.old`) older than 30 days
 
 ## Troubleshooting
 
@@ -313,11 +311,13 @@ Both scripts use a `$logDir` variable at the top of the script that can be modif
 $logDir = "C:\ProgramData\LazyTime"
 ```
 
-### Changing Log Retention
+### Changing Log Settings
 
-Both scripts use a `$logRetentionDays` variable:
+Both scripts support these logging configuration variables:
 ```powershell
-$logRetentionDays = 30
+$logRetentionDays = 30   # Days to keep old logs
+$maxLogSizeMB = 5        # Size threshold for rotation
+$maxLogArchives = 3      # Number of archives to keep
 ```
 
 ## Security Considerations
