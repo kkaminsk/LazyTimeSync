@@ -23,7 +23,7 @@ These scripts ensure Windows devices are configured to synchronize with Canadian
 
 ## Pre-Deployment Testing
 
-![](/Graphics/Test_Final.png)
+![](/Graphics/Test-Final.png)
 
 **Important:** Before deploying the W32Time scripts to devices behind firewalls, run `Test-NTP.ps1` to verify outbound NTP connectivity.
 
@@ -40,11 +40,11 @@ If any connectivity tests fail, ensure your firewall allows outbound UDP port 12
 
 ### Detect-LazyTime.ps1 The Detection Script
 
-![](/Graphics/Set-Final.png)
+![](/Graphics/Remediation-Final.png)
 
 ### Set-LazyTime.ps1 The Remediation Script
 
-![](/Graphics/Detect-Final.png)
+![](/Graphics/Checks-Final.png)
 
 ## NTP Servers
 
