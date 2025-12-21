@@ -327,6 +327,12 @@ $maxLogArchives = 3      # Number of archives to keep
 - NTP traffic is unencrypted UDP - ensure trusted network path
 - Consider using internal NTP servers in high-security environments
 
+## Version History
+
+| Version | Date | Description |
+|---------|------|-------------|
+| 1.0 | 2025-12-21 | Initial release. Intune remediation specification compliant. |
+
 ## License
 
 This project is provided as-is for use in enterprise environments.
