@@ -70,19 +70,37 @@ Pre-deployment test that verifies UDP 123 connectivity to NTP servers. Run befor
 | `$expectedNtpServers` | Detect-LazyTime.ps1 | Array of same servers |
 | `$maxDriftSeconds` | Detect-LazyTime.ps1 | `300` (5 minutes) |
 | `$logDir` | Both scripts | `C:\ProgramData\LazyTime` |
+| `$logPath` | Detect-LazyTime.ps1 | `$logDir\Detect-LazyTime.log` |
+| `$logPath` | Set-LazyTime.ps1 | `$logDir\Remediate-LazyTime.log` |
 | `$logRetentionDays` | Both scripts | `30` |
+| `$maxLogSizeMB` | Both scripts | `5` |
+| `$maxLogArchives` | Both scripts | `3` |
 | `$geolocationServiceName` | Both scripts | `lfsvc` |
 | `$locationPolicyPath` | Both scripts | `HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors` |
 | `$locationConsentPath` | Both scripts | `HKLM:\...\CapabilityAccessManager\ConsentStore\location` |
 
 ## Important Patterns
 
-### Logging
-Both detection and remediation scripts use identical logging:
-- Log path: `C:\ProgramData\LazyTime\W32Time-Intune-YYYY-MM-DD-HH-mm.log`
-- Format: `[YYYY-MM-DD HH:mm:ss] [LEVEL] Message`
-- Levels: `INFO`, `WARNING`, `ERROR`
-- Auto-cleanup of logs older than 30 days
+### Logging (Intune Best Practices)
+Both scripts use `Start-Transcript`/`Stop-Transcript` with size-based rotation:
+- Detection log: `C:\ProgramData\LazyTime\Detect-LazyTime.log`
+- Remediation log: `C:\ProgramData\LazyTime\Remediate-LazyTime.log`
+- Rotation: At 5MB, file is archived as `*.log.YYYYMMDD-HHmmss.old`
+- Archives: Keep 3 most recent, delete older
+- Retention: Delete logs older than 30 days
+- Console output: Single line only (`Compliant`/`Non-Compliant` or `Remediation completed successfully`/`Remediation failed`)
+
+### Script Structure
+Both scripts follow this pattern:
+```powershell
+# 1. Configuration variables
+# 2. Helper functions (Invoke-LogRotation, Remove-OldLogs, etc.)
+# 3. Create log directory if needed
+# 4. Log maintenance (rotation, cleanup)
+# 5. try { Start-Transcript; main logic } catch { } finally { Stop-Transcript }
+# 6. Single-line console output
+# 7. Exit code
+```
 
 ### NTP Time Query
 `Detect-LazyTime.ps1` contains a `Get-NtpTime` function that directly queries NTP servers using UDP sockets (port 123) to calculate time drift without relying on w32tm.
@@ -103,5 +121,7 @@ Both detection and remediation scripts use identical logging:
 ## When Modifying
 
 - Keep `$ntpServers` in Set-LazyTime.ps1 and `$expectedNtpServers` in Detect-LazyTime.ps1 synchronized
-- Both scripts share the same log directory and retention settings
+- Both scripts share identical `Invoke-LogRotation` and `Remove-OldLogs` functions
+- Log rotation settings (`$maxLogSizeMB`, `$maxLogArchives`, `$logRetentionDays`) should match between scripts
+- Console output must stay minimal (single line) to comply with Intune's 2048-character limit
 - The detection script's `Get-NtpTime` function uses raw socket communication - test changes carefully

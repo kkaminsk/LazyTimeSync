@@ -1,4 +1,4 @@
-# Detect-LazyW32Time.ps1 Execution Flow
+# Detect-LazyTime.ps1 Execution Flow
 
 This document describes the step-by-step execution flow of the detection script.
 
@@ -13,28 +13,45 @@ This document describes the step-by-step execution flow of the detection script.
 
 1. Define configuration variables:
    - Service name: `W32Time`
-   - Log directory: `C:\ProgramData\LazyW32TimeandLoc`
+   - Log directory: `C:\ProgramData\LazyTime`
+   - Log path: `C:\ProgramData\LazyTime\Detect-LazyTime.log`
    - Expected NTP servers: Canadian pool servers (0-3.ca.pool.ntp.org)
    - Maximum drift: 300 seconds (5 minutes)
    - Log retention: 30 days
+   - Max log size: 5 MB
+   - Max log archives: 3
    - Geolocation service name: `lfsvc`
    - Registry paths for location policies
    - Expected location policy values (all set to 0)
 
 2. Define helper functions:
-   - `Remove-OldLogs` - Cleans up log files older than retention period
-   - `Write-Log` - Writes timestamped entries to log file
+   - `Invoke-LogRotation` - Rotates log file when it exceeds 5 MB, keeps 3 archives
+   - `Remove-OldLogs` - Cleans up legacy log files and archives older than retention period
    - `Get-NtpTime` - Queries NTP server directly via UDP socket
 
-3. Initialize detection flag: `$detectionPassed = $true`
+### 2. Log Directory Setup
 
-### 2. Log Cleanup
+1. Check if log directory exists (`C:\ProgramData\LazyTime`)
+2. If not, create the directory
 
-1. Check if log directory exists
-2. Find all log files matching pattern `W32Time-Intune-*.log`
-3. Delete any log files older than 30 days
+### 3. Log Maintenance
 
-### 3. Detection Checks
+1. Call `Remove-OldLogs`:
+   - Find legacy log files matching pattern `W32Time-Intune-*.log`
+   - Delete any log files older than 30 days
+   - Find archive files matching pattern `*.old`
+   - Delete any archive files older than 30 days
+
+2. Call `Invoke-LogRotation`:
+   - If log file exceeds 5 MB:
+     - Rename to `Detect-LazyTime.log.YYYYMMDD-HHmmss.old`
+     - Prune archives beyond 3 most recent
+
+### 4. Detection Checks
+
+Initialize detection flag: `$detectionPassed = $true`
+
+Start transcript logging to `Detect-LazyTime.log`
 
 #### Check 1: W32Time Service Status
 
@@ -63,7 +80,7 @@ This document describes the step-by-step execution flow of the detection script.
    - Receive NTP response
    - Extract timestamp from bytes 40-47
    - Convert NTP timestamp to DateTime (epoch: 1900-01-01)
-   - If successful, stop trying other servers
+   - If successful, log server used and stop trying other servers
    - If failed, log warning and try next server
 
 2. Evaluate result:
@@ -109,25 +126,31 @@ This document describes the step-by-step execution flow of the detection script.
    - If value is not "Allow": **FAIL** - Log error with actual value, set `$detectionPassed = $false`
    - If value is "Allow": **PASS** - Log success
 
-### 4. Final Result
+### 5. Final Result
 
-1. Evaluate `$detectionPassed` flag:
-   - If `$true`:
-     - Log "Detection Result: SUCCESS"
+1. Log detection result to transcript:
+   - If `$detectionPassed = $true`: Log "Detection Result: COMPLIANT"
+   - If `$detectionPassed = $false`: Log "Detection Result: NON-COMPLIANT"
+
+2. Stop transcript logging
+
+3. Console output and exit:
+   - If `$detectionPassed = $true`:
      - Output "Compliant" to stdout
      - Exit with code **0**
-   - If `$false`:
-     - Log "Detection Result: FAILED"
+   - If `$detectionPassed = $false`:
      - Output "Non-Compliant" to stdout
      - Exit with code **1**
 
-### 5. Error Handling
+### 6. Error Handling
 
 If any unexpected error occurs during execution:
 1. Log the error message
 2. Log "Detection Result: FAILED"
-3. Output "Non-Compliant" to stdout
-4. Exit with code **1** (failure)
+3. Set `$detectionPassed = $false`
+4. Stop transcript
+5. Output "Non-Compliant" to stdout
+6. Exit with code **1** (failure)
 
 ## Exit Codes
 
@@ -153,7 +176,16 @@ If any unexpected error occurs during execution:
 START
   │
   ▼
-Remove Old Logs
+Create Log Directory (if missing)
+  │
+  ▼
+Remove Old Logs (30+ days)
+  │
+  ▼
+Rotate Log File (if > 5 MB)
+  │
+  ▼
+Start Transcript
   │
   ▼
 Initialize: detectionPassed = true
@@ -214,6 +246,12 @@ Initialize: detectionPassed = true
 │   No  ──► detectionPassed = false   │
 │   Yes ──► Log PASS                  │
 └─────────────────────────────────────┘
+  │
+  ▼
+Log Detection Result
+  │
+  ▼
+Stop Transcript
   │
   ▼
 Is detectionPassed = true?
