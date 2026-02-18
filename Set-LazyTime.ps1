@@ -1,3 +1,5 @@
+#Requires -Version 5.1
+
 <#
 .SYNOPSIS
     Intune Remediation Script - Configures W32Time service, NTP servers, and Geolocation service.
@@ -18,6 +20,7 @@
 #>
 
 # --- Configuration ---
+$scriptVersion = "1.1.0"
 $serviceName = "W32Time"
 $logDir = "C:\ProgramData\LazyTime"
 $logPath = "$logDir\Remediate-LazyTime.log"
@@ -32,6 +35,9 @@ $locationPolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSens
 $locationConsentPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location"
 
 # --- Helper Functions ---
+# Note: Invoke-LogRotation and Remove-OldLogs are intentionally duplicated in Detect-LazyTime.ps1.
+# Intune uploads detection and remediation scripts independently, so each must be self-contained.
+# Keep changes to these functions synchronized between both scripts.
 
 function Invoke-LogRotation {
     param(
@@ -100,7 +106,7 @@ try {
 
     # Set Windows Time service startup type to Automatic
     Write-Output "Setting $serviceName service startup type to Automatic"
-    Set-Service -Name $serviceName -StartupType Automatic
+    Set-Service -Name $serviceName -StartupType Automatic -ErrorAction Stop
     Write-Output "Service startup type set successfully"
 
     # Start the Windows Time service if not running
@@ -109,7 +115,7 @@ try {
 
     if ($serviceStatus -ne 'Running') {
         Write-Output "Starting $serviceName service"
-        Start-Service -Name $serviceName
+        Start-Service -Name $serviceName -ErrorAction Stop
         Start-Sleep -Seconds 2
         $newStatus = (Get-Service -Name $serviceName).Status
         Write-Output "$serviceName service status after start attempt: $newStatus"
@@ -127,7 +133,7 @@ try {
 
         # Restart the service after registration
         Write-Output "Restarting $serviceName service after registration"
-        Restart-Service -Name $serviceName -Force
+        Restart-Service -Name $serviceName -Force -ErrorAction Stop
         Start-Sleep -Seconds 2
         $newStatus = (Get-Service -Name $serviceName).Status
         Write-Output "$serviceName service status after restart: $newStatus"
@@ -139,11 +145,19 @@ try {
     Write-Output "Configuring NTP servers: $ntpServers"
     $configResult = w32tm /config /manualpeerlist:"$ntpServers" /syncfromflags:manual /reliable:yes /update 2>&1
     Write-Output "NTP configuration result: $configResult"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Output "[ERROR] w32tm /config failed with exit code $LASTEXITCODE"
+        $remediationSuccess = $false
+    }
 
     # Force an immediate time sync
     Write-Output "Forcing immediate time synchronization"
     $resyncResult = w32tm /resync /force 2>&1
     Write-Output "Resync result: $resyncResult"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Output "[ERROR] w32tm /resync failed with exit code $LASTEXITCODE"
+        $remediationSuccess = $false
+    }
 
     # Query current configuration for verification
     Write-Output "Querying current W32Time configuration"

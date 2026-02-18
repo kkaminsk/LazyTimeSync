@@ -40,11 +40,11 @@ If any connectivity tests fail, ensure your firewall allows outbound UDP port 12
 
 ### Detect-LazyTime.ps1 The Detection Script
 
-![](/Graphics/Remediation-Final.png)
+![](/Graphics/Checks-Final.png)
 
 ### Set-LazyTime.ps1 The Remediation Script
 
-![](/Graphics/Checks-Final.png)
+![](/Graphics/Remediation-Final.png)
 
 ## NTP Servers
 
@@ -66,7 +66,7 @@ The detection script (`Detect-LazyTime.ps1`) performs six checks:
 | Service Status | W32Time service must be running | Service stopped or not found |
 | NTP Configuration | All expected NTP servers must be configured | Any server missing from configuration |
 | Time Drift | Local time must be within tolerance of NTP time | Drift exceeds 300 seconds (5 minutes) |
-| Geolocation Service | lfsvc service must be running | Service stopped or not found |
+| Geolocation Service | lfsvc service must exist and not be Disabled | Service not found or startup type is Disabled |
 | Location Policies | LocationAndSensors registry policies must be set | DisableLocation, DisableWindowsLocationProvider, or DisableLocationScripting not 0 |
 | Location Consent | CapabilityAccessManager consent must be "Allow" | Consent value not set to "Allow" |
 
@@ -322,6 +322,7 @@ $maxLogArchives = 3      # Number of archives to keep
 
 ## Security Considerations
 
+- Scripts require PowerShell 5.1 or later (`#Requires -Version 5.1`)
 - Scripts run as SYSTEM (elevated) - required for service management
 - Log files are written to `C:\ProgramData\LazyTime` (accessible by admins)
 - NTP traffic is unencrypted UDP - ensure trusted network path
@@ -331,6 +332,7 @@ $maxLogArchives = 3      # Number of archives to keep
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 1.1.0 | 2026-02-17 | Code audit fixes: added `-ErrorAction Stop` to service cmdlets, `$LASTEXITCODE` checks for w32tm, socket leak fix in `Get-NtpTime`, lfsvc detection changed to "exists and not Disabled" to prevent perpetual remediation loops, added `#Requires -Version 5.1`. |
 | 1.0 | 2025-12-21 | Initial release. Intune remediation specification compliant. |
 
 ## License

@@ -14,6 +14,8 @@
 
 #Requires -Version 5.1
 
+$scriptVersion = "1.1.0"
+
 # NTP servers to test (same as remediation scripts)
 $ntpServers = @(
     "0.ca.pool.ntp.org",

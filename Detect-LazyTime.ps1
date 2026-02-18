@@ -1,3 +1,5 @@
+#Requires -Version 5.1
+
 <#
 .SYNOPSIS
     Intune Detection Script - Checks W32Time service, NTP configuration, time drift, and Geolocation service.
@@ -17,6 +19,7 @@
 #>
 
 # --- Configuration ---
+$scriptVersion = "1.1.0"
 $serviceName = "W32Time"
 $logDir = "C:\ProgramData\LazyTime"
 $logPath = "$logDir\Detect-LazyTime.log"
@@ -37,6 +40,9 @@ $expectedLocationPolicies = @{
 }
 
 # --- Helper Functions ---
+# Note: Invoke-LogRotation and Remove-OldLogs are intentionally duplicated in Set-LazyTime.ps1.
+# Intune uploads detection and remediation scripts independently, so each must be self-contained.
+# Keep changes to these functions synchronized between both scripts.
 
 function Invoke-LogRotation {
     param(
@@ -84,9 +90,11 @@ function Remove-OldLogs {
 function Get-NtpTime {
     param([string]$NtpServer)
 
+    $socket = $null
     try {
         $ntpData = New-Object byte[] 48
-        $ntpData[0] = 0x1B  # NTP request header
+        # NTP request header: 0x1B = 00 011 011 binary (LI=0 no warning, VN=3 NTPv3, Mode=3 client)
+        $ntpData[0] = 0x1B
 
         $socket = New-Object Net.Sockets.Socket([Net.Sockets.AddressFamily]::InterNetwork, [Net.Sockets.SocketType]::Dgram, [Net.Sockets.ProtocolType]::Udp)
         $socket.SendTimeout = 5000
@@ -95,9 +103,9 @@ function Get-NtpTime {
         $socket.Connect($NtpServer, 123)
         [void]$socket.Send($ntpData)
         [void]$socket.Receive($ntpData)
-        $socket.Close()
 
         # Extract timestamp from response (bytes 40-47)
+        # Reverse indexing converts big-endian NTP bytes to little-endian for x86/x64
         $intPart = [BitConverter]::ToUInt32($ntpData[43..40], 0)
         $fracPart = [BitConverter]::ToUInt32($ntpData[47..44], 0)
 
@@ -107,6 +115,8 @@ function Get-NtpTime {
         return $ntpTime
     } catch {
         return $null
+    } finally {
+        if ($socket) { $socket.Dispose() }
     }
 }
 
@@ -202,18 +212,21 @@ try {
         }
     }
 
-    # Check 4: Geolocation service (lfsvc) is running
-    Write-Output "Check 4: Verifying $geolocationServiceName service status"
+    # Check 4: Geolocation service (lfsvc) exists and is not disabled
+    # Note: lfsvc is a demand-start/trigger-start service that Windows may stop after inactivity.
+    # Requiring "Running" would cause a perpetual remediation loop. Instead, verify the service
+    # exists and its startup type is not Disabled.
+    Write-Output "Check 4: Verifying $geolocationServiceName service exists and is not disabled"
     $geoService = Get-Service -Name $geolocationServiceName -ErrorAction SilentlyContinue
 
     if ($null -eq $geoService) {
         Write-Output "[ERROR] $geolocationServiceName service not found"
         $detectionPassed = $false
-    } elseif ($geoService.Status -ne 'Running') {
-        Write-Output "[ERROR] $geolocationServiceName service is not running. Current status: $($geoService.Status)"
+    } elseif ($geoService.StartType -eq 'Disabled') {
+        Write-Output "[ERROR] $geolocationServiceName service is disabled. Current startup type: $($geoService.StartType)"
         $detectionPassed = $false
     } else {
-        Write-Output "[PASS] $geolocationServiceName service is running"
+        Write-Output "[PASS] $geolocationServiceName service exists and is not disabled (StartType: $($geoService.StartType), Status: $($geoService.Status))"
     }
 
     # Check 5: LocationAndSensors registry policies

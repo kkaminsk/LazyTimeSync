@@ -17,9 +17,12 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
 
-# LazyTimeSyncStuff
+# LazyTimeSync
 
 Intune remediation scripts for Windows Time (W32Time) service configuration and monitoring.
+
+**Version:** 1.1.0  
+**PowerShell:** Requires 5.1+ (`#Requires -Version 5.1`)
 
 ## Project Structure
 
@@ -27,11 +30,34 @@ Intune remediation scripts for Windows Time (W32Time) service configuration and 
 ├── Detect-LazyTime.ps1   # Detection script (Intune compliance check)
 ├── Set-LazyTime.ps1      # Remediation script (configures W32Time)
 ├── Test-NTP.ps1          # Pre-deployment connectivity test
-├── referencescript.ps1   # Original reference script (simplified version)
+├── README.md             # Full documentation
+├── claude.md             # AI assistant context
+├── codexaudit.md         # Code audit findings
+├── audit-implementation-summary.md  # Summary of audit fixes applied
+├── Detect-ExecutionFlow.md   # Detection script execution flow
+├── Set-ExecutionFlow.md      # Remediation script execution flow
+├── Test-ExecutionFlow.md     # Test script execution flow
+├── AGENTS.md             # Agent instructions
 ├── Graphics/             # Documentation images
-│   ├── Detect.png
-│   └── Remediate.png
-└── README.md             # Full documentation
+│   ├── Checks-Final.png
+│   ├── Checks.png / Checks.psd
+│   ├── Remediation-Final.png
+│   ├── Remediation.png / Remediation.psd
+│   ├── Test-Final.png
+│   └── Test.png / Test.psd
+├── referencecode/        # Original reference scripts
+│   ├── referencescript.ps1
+│   └── referencescript2.ps1
+├── Rules/                # Coding standards and best practices
+│   ├── bestpractices.md
+│   ├── CLAUDE.md
+│   └── Intune PowerShell Remediation Best Practices.md
+├── openspec/             # OpenSpec specifications and change proposals
+│   ├── project.md
+│   ├── AGENTS.md
+│   ├── specs/
+│   └── changes/
+└── .claude/              # Claude AI configuration
 ```
 
 ## Scripts Overview
@@ -41,7 +67,7 @@ Detection script that performs six compliance checks:
 1. **Service Status** - W32Time service must be running
 2. **NTP Configuration** - All expected NTP servers must be configured
 3. **Time Drift** - Local time must be within 300 seconds of NTP time
-4. **Geolocation Service** - lfsvc service must be running
+4. **Geolocation Service** - lfsvc service must exist and not be Disabled
 5. **Location Policies** - LocationAndSensors registry policies must allow location
 6. **Location Consent** - CapabilityAccessManager consent must be "Allow"
 
@@ -121,7 +147,11 @@ Both scripts follow this pattern:
 ## When Modifying
 
 - Keep `$ntpServers` in Set-LazyTime.ps1 and `$expectedNtpServers` in Detect-LazyTime.ps1 synchronized
-- Both scripts share identical `Invoke-LogRotation` and `Remove-OldLogs` functions
+- Both scripts share identical `Invoke-LogRotation` and `Remove-OldLogs` helper functions (intentional duplication — Intune runs each script in isolation)
 - Log rotation settings (`$maxLogSizeMB`, `$maxLogArchives`, `$logRetentionDays`) should match between scripts
 - Console output must stay minimal (single line) to comply with Intune's 2048-character limit
-- The detection script's `Get-NtpTime` function uses raw socket communication - test changes carefully
+- The detection script's `Get-NtpTime` function uses raw socket communication — test changes carefully
+- Service cmdlets (`Set-Service`, `Start-Service`, `Restart-Service`) must use `-ErrorAction Stop` to ensure try/catch catches failures
+- Always check `$LASTEXITCODE` after `w32tm` calls — native executables don't throw PowerShell exceptions
+- Socket resources in `Get-NtpTime` must be disposed in a `finally` block to prevent leaks
+- Update `$scriptVersion` in all three scripts when making changes
