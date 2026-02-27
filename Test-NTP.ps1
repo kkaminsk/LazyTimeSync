@@ -3,7 +3,8 @@
     Tests outbound NTP connectivity to configured NTP servers.
 
 .DESCRIPTION
-    This script tests UDP port 123 connectivity to NTP pool servers.
+    This script tests UDP port 123 connectivity to NTP pool servers
+    using raw UDP sockets (no dependency on the local W32Time service).
     Run this before deploying W32Time remediation scripts to verify
     firewall rules allow outbound NTP traffic.
 
@@ -14,9 +15,10 @@
 
 #Requires -Version 5.1
 
-$scriptVersion = "1.1.0"
+$scriptVersion = "1.2.0"
 
-# NTP servers to test (same as remediation scripts)
+# Adjust NTP servers for your geographic region or internal NTP infrastructure.
+# Must stay synchronized with $expectedNtpServers in Detect-LazyTime.ps1 and $ntpServers in Set-LazyTime.ps1.
 $ntpServers = @(
     "0.ca.pool.ntp.org",
     "1.ca.pool.ntp.org",
@@ -24,11 +26,47 @@ $ntpServers = @(
     "3.ca.pool.ntp.org"
 )
 
-$samplesPerServer = 3
+# --- Helper Functions ---
+# Note: Get-NtpTime is intentionally duplicated from Detect-LazyTime.ps1.
+# Each script must be self-contained. Keep changes synchronized.
+
+function Get-NtpTime {
+    param([string]$NtpServer)
+
+    $socket = $null
+    try {
+        $ntpData = New-Object byte[] 48
+        # NTP request header: 0x1B = 00 011 011 binary (LI=0 no warning, VN=3 NTPv3, Mode=3 client)
+        $ntpData[0] = 0x1B
+
+        $socket = New-Object Net.Sockets.Socket([Net.Sockets.AddressFamily]::InterNetwork, [Net.Sockets.SocketType]::Dgram, [Net.Sockets.ProtocolType]::Udp)
+        $socket.SendTimeout = 5000
+        $socket.ReceiveTimeout = 5000
+
+        $socket.Connect($NtpServer, 123)
+        [void]$socket.Send($ntpData)
+        [void]$socket.Receive($ntpData)
+
+        # Extract timestamp from response (bytes 40-47)
+        # Reverse indexing converts big-endian NTP bytes to little-endian for x86/x64
+        $intPart = [BitConverter]::ToUInt32($ntpData[43..40], 0)
+        $fracPart = [BitConverter]::ToUInt32($ntpData[47..44], 0)
+
+        # Convert NTP timestamp to DateTime (NTP epoch is 1900-01-01)
+        $ntpTime = (New-Object DateTime(1900, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)).AddSeconds($intPart).AddSeconds($fracPart / [Math]::Pow(2, 32))
+
+        return $ntpTime
+    } catch {
+        return $null
+    } finally {
+        if ($socket) { $socket.Dispose() }
+    }
+}
+
 $results = @()
 
 Write-Host "`n========== NTP Connectivity Test ==========" -ForegroundColor Cyan
-Write-Host "Testing outbound UDP port 123 to NTP servers`n"
+Write-Host "Testing outbound UDP port 123 to NTP servers (raw socket, no W32Time dependency)`n"
 
 foreach ($server in $ntpServers) {
     Write-Host "Testing: $server" -ForegroundColor Yellow
@@ -48,48 +86,24 @@ foreach ($server in $ntpServers) {
         continue
     }
 
-    # Test NTP query using w32tm
-    try {
-        $output = w32tm /stripchart /computer:$server /samples:$samplesPerServer /dataonly 2>&1
-        $outputStr = $output -join "`n"
-
-        if ($outputStr -match "error|0x800705B4|timed out") {
-            Write-Host "  NTP query FAILED" -ForegroundColor Red
-            Write-Host "  Error: Connection timed out or blocked" -ForegroundColor Red
-            $results += [PSCustomObject]@{
-                Server = $server
-                Status = "FAIL"
-                Details = "Connection timed out - check firewall UDP 123"
-            }
+    # Test NTP query using raw UDP socket (independent of W32Time service)
+    $ntpTime = Get-NtpTime -NtpServer $server
+    if ($null -ne $ntpTime) {
+        $localTime = [DateTime]::UtcNow
+        $offset = [Math]::Round(($localTime - $ntpTime).TotalSeconds, 3)
+        Write-Host "  NTP query SUCCESS (offset: ${offset}s)" -ForegroundColor Green
+        $results += [PSCustomObject]@{
+            Server = $server
+            Status = "PASS"
+            Details = "Offset: ${offset}s"
         }
-        else {
-            # Extract offset from successful response
-            $offsetMatch = $output | Select-String -Pattern "([+-]?\d+\.\d+)s$" | Select-Object -Last 1
-            if ($offsetMatch) {
-                $offset = $offsetMatch.Matches[0].Groups[1].Value
-                Write-Host "  NTP query SUCCESS (offset: ${offset}s)" -ForegroundColor Green
-                $results += [PSCustomObject]@{
-                    Server = $server
-                    Status = "PASS"
-                    Details = "Offset: ${offset}s"
-                }
-            }
-            else {
-                Write-Host "  NTP query SUCCESS" -ForegroundColor Green
-                $results += [PSCustomObject]@{
-                    Server = $server
-                    Status = "PASS"
-                    Details = "Response received"
-                }
-            }
-        }
-    }
-    catch {
-        Write-Host "  NTP query FAILED: $($_.Exception.Message)" -ForegroundColor Red
+    } else {
+        Write-Host "  NTP query FAILED" -ForegroundColor Red
+        Write-Host "  Error: No response - check firewall UDP 123" -ForegroundColor Red
         $results += [PSCustomObject]@{
             Server = $server
             Status = "FAIL"
-            Details = $_.Exception.Message
+            Details = "No response - check firewall UDP 123"
         }
     }
 

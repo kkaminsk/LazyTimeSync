@@ -19,10 +19,12 @@
 #>
 
 # --- Configuration ---
-$scriptVersion = "1.1.0"
+$scriptVersion = "1.2.0"
 $serviceName = "W32Time"
 $logDir = "C:\ProgramData\LazyTime"
 $logPath = "$logDir\Detect-LazyTime.log"
+# Adjust NTP servers for your geographic region or internal NTP infrastructure.
+# Must stay synchronized with $ntpServers in Set-LazyTime.ps1 and Test-NTP.ps1.
 $expectedNtpServers = @("0.ca.pool.ntp.org", "1.ca.pool.ntp.org", "2.ca.pool.ntp.org", "3.ca.pool.ntp.org")
 $maxDriftSeconds = 300
 $logRetentionDays = 30

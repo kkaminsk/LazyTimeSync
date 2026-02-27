@@ -1,27 +1,9 @@
-<!-- OPENSPEC:START -->
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
 
 # LazyTimeSync
 
 Intune remediation scripts for Windows Time (W32Time) service configuration and monitoring.
 
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 **PowerShell:** Requires 5.1+ (`#Requires -Version 5.1`)
 
 ## Project Structure
@@ -31,17 +13,18 @@ Intune remediation scripts for Windows Time (W32Time) service configuration and 
 ├── Set-LazyTime.ps1      # Remediation script (configures W32Time)
 ├── Test-NTP.ps1          # Pre-deployment connectivity test
 ├── README.md             # Full documentation
+├── AGENTS.md             # Agent instructions
 ├── claude.md             # AI assistant context
 ├── codexaudit.md         # Code audit findings
+├── geminicodereview.md   # Gemini code review feedback
 ├── audit-implementation-summary.md  # Summary of audit fixes applied
 ├── Detect-ExecutionFlow.md   # Detection script execution flow
 ├── Set-ExecutionFlow.md      # Remediation script execution flow
 ├── Test-ExecutionFlow.md     # Test script execution flow
-├── AGENTS.md             # Agent instructions
 ├── Graphics/             # Documentation images
 │   ├── Checks-Final.png
 │   ├── Checks.png / Checks.psd
-│   ├── Remediation-Final.png
+│   ├── Remediation-Final.png / Remediation-final.png
 │   ├── Remediation.png / Remediation.psd
 │   ├── Test-Final.png
 │   └── Test.png / Test.psd
@@ -53,11 +36,27 @@ Intune remediation scripts for Windows Time (W32Time) service configuration and 
 │   ├── CLAUDE.md
 │   └── Intune PowerShell Remediation Best Practices.md
 ├── openspec/             # OpenSpec specifications and change proposals
+│   ├── config.yaml       # OpenSpec schema configuration
 │   ├── project.md
-│   ├── AGENTS.md
 │   ├── specs/
+│   │   └── time-sync/
 │   └── changes/
-└── .claude/              # Claude AI configuration
+│       ├── add-geolocation-service/
+│       ├── align-intune-best-practices/
+│       ├── fix-code-quality-and-docs/
+│       ├── fix-critical-error-handling/
+│       └── archive/
+├── .claude/              # Claude AI configuration
+│   ├── settings.local.json
+│   ├── commands/
+│   │   └── opsx/         # OPSX slash commands (apply, archive, new, ff, etc.)
+│   └── skills/           # OpenSpec skill definitions
+│       └── openspec-*/   # Skills for apply, archive, continue, explore, etc.
+└── .crush/               # Crush AI configuration (mirrors .claude structure)
+    ├── crush.db
+    ├── commands/opsx/
+    ├── skills/openspec-*/
+    └── logs/
 ```
 
 ## Scripts Overview

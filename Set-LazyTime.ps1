@@ -20,10 +20,12 @@
 #>
 
 # --- Configuration ---
-$scriptVersion = "1.1.0"
+$scriptVersion = "1.2.0"
 $serviceName = "W32Time"
 $logDir = "C:\ProgramData\LazyTime"
 $logPath = "$logDir\Remediate-LazyTime.log"
+# Adjust NTP servers for your geographic region or internal NTP infrastructure.
+# Must stay synchronized with $expectedNtpServers in Detect-LazyTime.ps1 and Test-NTP.ps1.
 $ntpServers = "0.ca.pool.ntp.org,1.ca.pool.ntp.org,2.ca.pool.ntp.org,3.ca.pool.ntp.org"
 $logRetentionDays = 30
 $maxLogSizeMB = 5
@@ -64,6 +66,25 @@ function Invoke-LogRotation {
             }
         }
     }
+}
+
+function Wait-ServiceRunning {
+    param(
+        [string]$Name,
+        [int]$TimeoutSeconds = 30,
+        [int]$PollIntervalSeconds = 2
+    )
+
+    $elapsed = 0
+    while ($elapsed -lt $TimeoutSeconds) {
+        $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq 'Running') {
+            return $true
+        }
+        Start-Sleep -Seconds $PollIntervalSeconds
+        $elapsed += $PollIntervalSeconds
+    }
+    return $false
 }
 
 function Remove-OldLogs {
@@ -116,9 +137,11 @@ try {
     if ($serviceStatus -ne 'Running') {
         Write-Output "Starting $serviceName service"
         Start-Service -Name $serviceName -ErrorAction Stop
-        Start-Sleep -Seconds 2
-        $newStatus = (Get-Service -Name $serviceName).Status
-        Write-Output "$serviceName service status after start attempt: $newStatus"
+        if (Wait-ServiceRunning -Name $serviceName) {
+            Write-Output "$serviceName service is now running"
+        } else {
+            Write-Output "[WARNING] $serviceName service did not reach Running state within timeout"
+        }
     } else {
         Write-Output "$serviceName service is already running"
     }
@@ -134,9 +157,11 @@ try {
         # Restart the service after registration
         Write-Output "Restarting $serviceName service after registration"
         Restart-Service -Name $serviceName -Force -ErrorAction Stop
-        Start-Sleep -Seconds 2
-        $newStatus = (Get-Service -Name $serviceName).Status
-        Write-Output "$serviceName service status after restart: $newStatus"
+        if (Wait-ServiceRunning -Name $serviceName) {
+            Write-Output "$serviceName service is now running after restart"
+        } else {
+            Write-Output "[WARNING] $serviceName service did not reach Running state within timeout"
+        }
     } else {
         Write-Output "W32Time service is already registered"
     }
@@ -200,6 +225,10 @@ try {
         Write-Output "$geolocationServiceName service not found, creating it"
         $createResult = sc.exe create lfsvc binPath= "%SystemRoot%\System32\svchost.exe -k netsvcs" DisplayName= "@%SystemRoot%\System32\lfsvc.dll,-1" start= demand 2>&1
         Write-Output "Service creation result: $createResult"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Output "[ERROR] sc.exe create failed with exit code $LASTEXITCODE"
+            $remediationSuccess = $false
+        }
     } else {
         Write-Output "$geolocationServiceName service already exists"
     }
@@ -209,9 +238,13 @@ try {
     Set-Service -Name $geolocationServiceName -StartupType Manual -ErrorAction SilentlyContinue
     Write-Output "Starting $geolocationServiceName service"
     Start-Service -Name $geolocationServiceName -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-    $geoStatus = (Get-Service -Name $geolocationServiceName -ErrorAction SilentlyContinue).Status
-    Write-Output "$geolocationServiceName service status: $geoStatus"
+    if (Wait-ServiceRunning -Name $geolocationServiceName -TimeoutSeconds 10) {
+        Write-Output "$geolocationServiceName service is now running"
+    } else {
+        # lfsvc is demand-start/trigger-start; it may stop itself after brief activity — this is expected
+        $geoStatus = (Get-Service -Name $geolocationServiceName -ErrorAction SilentlyContinue).Status
+        Write-Output "$geolocationServiceName service status: $geoStatus (demand-start service may not stay running)"
+    }
 
     Write-Output "========== Geolocation Service Configuration Completed =========="
     Write-Output "========== All Configuration Completed Successfully =========="
